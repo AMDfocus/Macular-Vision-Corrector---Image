@@ -1,78 +1,82 @@
+<!--
+  Macular Vision Corrector — Image & Grid Test (Fixed enableDrawGrid Syntax)
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Macular Vision Corrector</title>
+  <title>             Macular Vision Corrector — Image & Grid Test</title>
   <style>
-    body { display: flex; flex-direction: column; align-items: center; font-family: sans-serif; }
-    .canvas-container { display: flex; gap: 20px; margin-top: 10px; }
-    canvas { border: 1px solid #888; }
-    #controls { margin: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-    button, label, textarea, input { font-size: 14px; }
+    body { margin:20px; font-family:sans-serif; }
+    .canvas-container { display:flex; gap:20px; margin-top:20px; }
+    .panel { display:flex; flex-direction:column; align-items:center; }
+    canvas { border:1px solid #888; background-color:#fff; }
+    label, button { font-size:16px; margin:4px; }
+    #metrics { margin-top:10px; font-size:16px; text-align:center; }
   </style>
 </head>
 <body>
-  <h2>Macular Vision Corrector</h2>
-  <div id="controls">
-    <button id="resetBtn">Reset Grid</button>
-    <button id="exportBtn">Export Displacements</button>
-    <input type="file" id="importInput" accept="application/json" style="display:none;">
-    <button id="importBtn">Import Displacements</button>
+  <h2>Image Upload & Calibration Grid</h2>
+
+  <div>
     <label>
-      Magnification:
-      <input type="range" id="zoomSlider" min="1" max="3" step="0.1" value="1">
-      <span id="zoomValue">1×</span>
+      Load Letter Image: 
+      <input type="file" id="imgLoader" accept="image/png, image/jpeg">
     </label>
-    <textarea id="textInput" rows="10" cols="50" placeholder="Enter your text here...">Macular degeneration causes loss in the centre of the field of vision.</textarea>
-    <button id="applyBtn">Apply My Correction</button>
+    <button id="calcMetrics">Calculate Metrics</button>
   </div>
 
   <div class="canvas-container">
-    <div>
-      <h4>Calibration Grid</h4>
-      <canvas id="gridCanvas" width="400" height="400"></canvas>
+    <div class="panel">
+      <h4>Calibration Grid (Drag to Calibrate)</h4>
+      <canvas id="gridCanvas" width="300" height="300"></canvas>
+      <div>
+        <button id="undoBtn">Undo</button>
+        <button id="resetBtn">Reset</button>
+      </div>
     </div>
-    <div>
-      <h4>Corrected Text Preview</h4>
-      <canvas id="previewCanvas" width="400" height="200"></canvas>
+
+    <div class="panel">
+      <h4>Original Image</h4>
+      <canvas id="origCanvas" width="300" height="300"></canvas>
+    </div>
+
+    <div class="panel">
+      <h4>Corrected Image</h4>
+      <canvas id="corrCanvas" width="300" height="300"></canvas>
     </div>
   </div>
 
+  <div id="metrics"></div>
+
   <script>
-    // Canvas & Controls
-    const gridCanvas = document.getElementById('gridCanvas'),
-          gctx = gridCanvas.getContext('2d');
-    const previewCanvas = document.getElementById('previewCanvas'),
-          pctx = previewCanvas.getContext('2d');
-    const zoomSlider = document.getElementById('zoomSlider'),
-          zoomValue = document.getElementById('zoomValue');
-    const textInput = document.getElementById('textInput'),
-          applyBtn = document.getElementById('applyBtn');
+    // Calibration Grid Setup
+    const COLS = 20, N = COLS + 1, gridSize = 300;
+    const cellW = gridSize / COLS;
+    const gridCanvas = document.getElementById('gridCanvas');
+    const gctx = gridCanvas.getContext('2d');
 
-    // Grid params
-    const COLS = 20, ROWS = 20, N = COLS + 1;
-    const cellW = gridCanvas.width / COLS,
-          cellH = gridCanvas.height / ROWS;
-    const FONT = '20px sans-serif',
-          lineHeight = 24;
-    let points = [], dragPoint = null,
-        coeffDx = [], coeffDy = [];
-
-    // Initialize grid points
+    let points = [], dragPoint = null;
     for (let i = 0; i < N; i++) {
       points[i] = [];
       for (let j = 0; j < N; j++) {
-        points[i][j] = { x: i * cellW, y: j * cellH, dx: 0, dy: 0 };
+        points[i][j] = { x: i * cellW, y: j * cellW, dx: 0, dy: 0 };
       }
     }
 
-    // Draw the Amsler grid with draggable points
-    function drawGrid() {
-      gctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+    // History for Undo
+    const history = [];
+    function saveState() {
+      history.push(points.flat().map(p => ({ dx: p.dx, dy: p.dy })));
+    }
+
+    // Draw grid (with red center dot)
+    function enableDrawGrid() {
+      gctx.clearRect(0, 0, gridSize, gridSize);
       gctx.strokeStyle = '#ccc';
       gctx.lineWidth = 1;
 
-      // Vertical lines
+      // Draw vertical lines
       for (let i = 0; i < N; i++) {
         gctx.beginPath();
         gctx.moveTo(points[i][0].x + points[i][0].dx, points[i][0].y + points[i][0].dy);
@@ -82,7 +86,7 @@
         gctx.stroke();
       }
 
-      // Horizontal lines
+      // Draw horizontal lines
       for (let j = 0; j < N; j++) {
         gctx.beginPath();
         gctx.moveTo(points[0][j].x + points[0][j].dx, points[0][j].y + points[0][j].dy);
@@ -92,7 +96,7 @@
         gctx.stroke();
       }
 
-      // Handles
+      // Draw handles
       points.flat().forEach(p => {
         gctx.beginPath();
         gctx.arc(p.x + p.dx, p.y + p.dy, 4, 0, 2 * Math.PI);
@@ -100,45 +104,53 @@
         gctx.fill();
       });
 
-      // Center marker
-      const cx = gridCanvas.width / 2,
-            cy = gridCanvas.height / 2;
-      gctx.strokeStyle = 'red';
-      gctx.lineWidth = 2;
+      // Draw red center dot at (150, 150)
+      const cx = gridSize / 2, cy = gridSize / 2;
       gctx.beginPath();
       gctx.arc(cx, cy, 6, 0, 2 * Math.PI);
-      gctx.stroke();
-      gctx.beginPath();
-      gctx.moveTo(cx - 10, cy);
-      gctx.lineTo(cx + 10, cy);
-      gctx.moveTo(cx, cy - 10);
-      gctx.lineTo(cx, cy + 10);
-      gctx.stroke();
+      gctx.fillStyle = 'red';
+      gctx.fill();
     }
 
-    // Drag handlers
+    // Drag events for calibration grid
     gridCanvas.addEventListener('pointerdown', e => {
-      const rect = gridCanvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left,
-            my = e.clientY - rect.top;
+      saveState();
+      const r = gridCanvas.getBoundingClientRect();
+      const mx = e.clientX - r.left, my = e.clientY - r.top;
       points.flat().forEach(p => {
-        if (Math.hypot(mx - (p.x + p.dx), my - (p.y + p.dy)) < 8) {
+        if (Math.hypot(mx - (p.x + p.dx), my - (p.y + p.dy)) < 6) {
           dragPoint = p;
         }
       });
     });
     gridCanvas.addEventListener('pointermove', e => {
       if (!dragPoint) return;
-      const rect = gridCanvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left,
-            my = e.clientY - rect.top;
-      dragPoint.dx = Math.max(-dragPoint.x, Math.min(gridCanvas.width - dragPoint.x, mx - dragPoint.x));
-      dragPoint.dy = Math.max(-dragPoint.y, Math.min(gridCanvas.height - dragPoint.y, my - dragPoint.y));
-      drawGrid();
+      const r = gridCanvas.getBoundingClientRect();
+      dragPoint.dx = e.clientX - r.left - dragPoint.x;
+      dragPoint.dy = e.clientY - r.top - dragPoint.y;
+      enableDrawGrid();
     });
     gridCanvas.addEventListener('pointerup', () => { dragPoint = null; });
 
-    // Compute Fourier coefficients
+    // Undo / Reset buttons
+    document.getElementById('undoBtn').onclick = () => {
+      if (history.length) {
+        const last = history.pop();
+        points.flat().forEach((p, i) => {
+          p.dx = last[i].dx;
+          p.dy = last[i].dy;
+        });
+        enableDrawGrid();
+      }
+    };
+    document.getElementById('resetBtn').onclick = () => {
+      points.flat().forEach(p => { p.dx = 0; p.dy = 0; });
+      history.length = 0;
+      enableDrawGrid();
+    };
+
+    // Fourier coefficient arrays
+    const coeffDx = [], coeffDy = [];
     function computeCoeffs() {
       for (let u = 0; u < N; u++) {
         coeffDx[u] = [];
@@ -149,10 +161,8 @@
             for (let j = 0; j < N; j++) {
               const ang = -2 * Math.PI * (u * i / N + v * j / N);
               const c = Math.cos(ang), s = Math.sin(ang);
-              rX += points[i][j].dx * c;
-              iX += points[i][j].dx * s;
-              rY += points[i][j].dy * c;
-              iY += points[i][j].dy * s;
+              rX += points[i][j].dx * c; iX += points[i][j].dx * s;
+              rY += points[i][j].dy * c; iY += points[i][j].dy * s;
             }
           }
           const norm = N * N;
@@ -161,11 +171,8 @@
         }
       }
     }
-
-    // Sample displacement from Fourier field
     function fourierDist(x, y) {
-      const gx = x / cellW,
-            gy = y / cellH;
+      const gx = x / cellW, gy = y / cellW;
       let dx = 0, dy = 0;
       for (let u = 0; u < N; u++) {
         for (let v = 0; v < N; v++) {
@@ -178,76 +185,56 @@
       return { dx, dy };
     }
 
-    // Apply correction
-    applyBtn.onclick = () => {
+    // Image upload (no red dots on these)
+    const imgLoader = document.getElementById('imgLoader');
+    const origCanvas = document.getElementById('origCanvas'), octx = origCanvas.getContext('2d');
+    const corrCanvas = document.getElementById('corrCanvas'), cctx = corrCanvas.getContext('2d');
+    let img = null;
+    imgLoader.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        img = new Image();
+        img.onload = () => {
+          octx.fillStyle = '#fff'; octx.fillRect(0, 0, 300, 300);
+          const s = Math.min(300 / img.width, 300 / img.height);
+          const w = img.width * s, h = img.height * s;
+          const xOff = (300 - w) / 2, yOff = (300 - h) / 2;
+          octx.drawImage(img, 0, 0, img.width, img.height, xOff, yOff, w, h);
+          cctx.fillStyle = '#fff'; cctx.fillRect(0, 0, 300, 300);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // Metrics calculation
+    const metricsDiv = document.getElementById('metrics');
+    document.getElementById('calcMetrics').onclick = () => {
+      if (!img) { alert('Load an image first'); return; }
       computeCoeffs();
-      pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-
-      // Filter out empty tokens
-      const words = textInput.value.trim().split(/\s+/).filter(w => w.length);
-      const space = pctx.measureText(' ').width;
-      let x = 0, y = 0;
-      const maxW = previewCanvas.width;
-
-      // Draw original (gray)
-      pctx.font = FONT;
-      pctx.textBaseline = 'top';
-      pctx.textAlign = 'left';
-      pctx.fillStyle = 'rgba(0,0,0,0.2)';
-      words.forEach(w => {
-        const wW = pctx.measureText(w).width;
-        if (x + wW > maxW) { x = 0; y += lineHeight; }
-        pctx.fillText(w, x, y);
-        x += wW + space;
-      });
-
-      // Draw corrected (black)
-      x = 0; y = 0;
-      pctx.fillStyle = '#000';
-      words.forEach(w => {
-        const wW = Math.ceil(pctx.measureText(w).width),
-              h  = lineHeight;
-        if (x + wW > maxW) { x = 0; y += lineHeight; }
-        // Offscreen canvas for each word
-        const off = document.createElement('canvas');
-        off.width  = wW;
-        off.height = h;
-        const ictx = off.getContext('2d');
-        ictx.font         = FONT;
-        ictx.textBaseline = 'top';
-        ictx.fillStyle    = '#000';
-        ictx.fillText(w, 0, 0);
-        const src = ictx.getImageData(0, 0, wW, h).data;
-        const dst = pctx.createImageData(wW, h);
-        const cx = previewCanvas.width / 2,
-              cy = previewCanvas.height / 2;
-        // Warp pixels
-        for (let py = 0; py < h; py++) {
-          for (let px = 0; px < wW; px++) {
-            const { dx, dy } = fourierDist(cx + px - wW/2, cy + py - h/2);
-            const sx = Math.round(px + dx),
-                  sy = Math.round(py + dy);
-            const si = 4 * ((Math.max(0, Math.min(h-1, sy)) * wW) +
-                            Math.max(0, Math.min(wW-1, sx)));
-            const di = 4 * (py * wW + px);
-            dst.data.set(src.slice(si, si+4), di);
-          }
+      const origData = octx.getImageData(0, 0, 300, 300), corrData = cctx.createImageData(300, 300);
+      let sum = 0, max = 0, thresh = 5, count = 0;
+      for (let y = 0; y < 300; y++) {
+        for (let x = 0; x < 300; x++) {
+          const { dx, dy } = fourierDist(x, y);
+          const sx = Math.min(299, Math.max(0, Math.round(x - dx))), sy = Math.min(299, Math.max(0, Math.round(y - dy)));
+          const si = (sy * 300 + sx) * 4, di = (y * 300 + x) * 4;
+          for (let k = 0; k < 4; k++) corrData.data[di + k] = origData.data[si + k];
+          const d = Math.hypot(dx, dy);
+          sum += d; max = Math.max(max, d);
+          if (d > thresh) count++;
         }
-        // Paint onto preview
-        pctx.putImageData(dst, x, y);
-        x += wW + space;
-      });
+      }
+      cctx.putImageData(corrData, 0, 0);
+      const total = 300 * 300;
+      const avg = sum / total, pct = (count / total * 100).toFixed(2);
+      metricsDiv.innerHTML = `Average: ${avg.toFixed(2)}px<br>Max: ${max.toFixed(2)}px<br>>${thresh}px: ${pct}%`;
     };
 
-    // Zoom control
-    zoomSlider.oninput = e => {
-      const z = e.target.value;
-      previewCanvas.style.transform = `scale(${z})`;
-      zoomValue.textContent = z + '×';
-    };
-
-    // Initialize grid on load
-    drawGrid();
+    // Initialize grid
+    enableDrawGrid();
   </script>
 </body>
 </html>

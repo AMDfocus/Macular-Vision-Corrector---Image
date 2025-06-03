@@ -1,19 +1,40 @@
-<!--
-  Macular Vision Corrector — Image & Grid Test (Fixed enableDrawGrid Syntax)
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Macular Vision Corrector — Image & Grid Test</title>
   <style>
-    body { margin: 20px; font-family: sans-serif; }
-    .canvas-container { display: flex; gap: 20px; margin-top: 20px; }
-    .panel { display: flex; flex-direction: column; align-items: center; }
-    canvas { border: 1px solid #888; background-color: #fff; }
-    label, button { font-size: 16px; margin: 4px; }
-    #metrics { margin-top: 10px; font-size: 16px; text-align: center; }
-    /* Footer styling (no background color so it blends with page) */
+    body {
+      margin: 20px;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .canvas-row {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      border: 1px solid #888;
+      background-color: #fff;
+    }
+    label, button {
+      font-size: 16px;
+      margin: 4px;
+    }
+    #metrics {
+      margin-top: 10px;
+      font-size: 16px;
+      text-align: center;
+    }
     .footer {
       text-align: center;
       color: blue;
@@ -24,14 +45,15 @@
 </head>
 <body>
   <h2>Image Upload & Calibration Grid</h2>
+
   <p><strong>How to Use:</strong></p>
-<ol>
-  <li><strong>Upload an Image:</strong> Click "Load Letter Image" and choose a JPEG or PNG file.</li>
-  <li><strong>Calibrate the Grid:</strong> Drag the small dots on the calibration grid to simulate visual distortion caused by macular degeneration.</li>
-  <li><strong>Undo or Reset:</strong> Use the "Undo" button to step back, or "Reset" to clear all grid changes.</li>
-  <li><strong>Apply Correction:</strong> Click "Calculate Metrics" to generate the corrected image and display distortion metrics.</li>
-  <li><strong>Compare Results:</strong> Use the side-by-side panels to view the original and corrected images.</li>
-</ol>
+  <ol>
+    <li><strong>Upload an Image:</strong> Click "Load Letter Image" and choose a JPEG or PNG file.</li>
+    <li><strong>Calibrate the Grid:</strong> Drag the small dots on the calibration grid to simulate visual distortion caused by macular degeneration.</li>
+    <li><strong>Undo or Reset:</strong> Use the "Undo" button to step back, or "Reset" to clear all grid changes.</li>
+    <li><strong>Apply Correction:</strong> Click "Calculate Metrics" to generate the corrected image and display distortion metrics.</li>
+    <li><strong>Compare Results:</strong> Use the side-by-side panels to view the original and corrected images.</li>
+  </ol>
 
   <div>
     <label>
@@ -41,16 +63,16 @@
     <button id="calcMetrics">Calculate Metrics</button>
   </div>
 
-  <div class="canvas-container">
-    <div class="panel">
-      <h4>Calibration Grid (Drag to Calibrate)</h4>
-      <canvas id="gridCanvas" width="300" height="300"></canvas>
-      <div>
-        <button id="undoBtn">Undo</button>
-        <button id="resetBtn">Reset</button>
-      </div>
+  <div class="panel">
+    <h4>Calibration Grid (Drag to Calibrate)</h4>
+    <canvas id="gridCanvas" width="300" height="300"></canvas>
+    <div>
+      <button id="undoBtn">Undo</button>
+      <button id="resetBtn">Reset</button>
     </div>
+  </div>
 
+  <div class="canvas-row">
     <div class="panel">
       <h4>Original Image</h4>
       <canvas id="origCanvas" width="300" height="300"></canvas>
